@@ -1,0 +1,227 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.9">
+  <POU Name="FB_CTRL_P" Id="{1853528e-3018-4ae7-9eda-385611b9e2d0}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_CTRL_P
+VAR_IN_OUT
+	stParams	: ST_CTRL_P_PARAMS; (*paremeter structure*)
+END_VAR
+
+VAR_INPUT
+	fIn			: LREAL := 0;						 (*controller input*)
+	eMode		: E_CTRL_MODE := E_CTRL_MODE.eCTRL_MODE_IDLE;					 (*operating mode*)	
+END_VAR
+
+VAR_OUTPUT
+	fOut	           : LREAL := 0;				(*controller ourput*)
+	eState	           : E_CTRL_STATE := E_CTRL_STATE.eCTRL_STATE_IDLE;		(*current state of the function block*)
+	eErrorId           : E_CTRL_ERRORCODES := E_CTRL_ERRORCODES.eCTRL_ERROR_NOERROR; (*error code*)
+	bError	           : BOOL := FALSE;				(*TRUE, if error occurs*)
+END_VAR
+
+VAR
+	stInternalParams    				: ST_CTRL_P_PARAMS;
+	stInternalCycleTimeInterpretation 	: ST_CTRL_CYCLE_TIME_INTERPRETATION;
+
+	bFirstInit 	   		: BOOL := TRUE;	(*FALSE, if stParams is set correctly - vjv nakon toga ne provjerava parametre stParams*)
+	fD0 		   		: LREAL := 0;
+	fTaskCycleTime     	: LREAL := 0;
+	fCtrlCycleTime	   	: LREAL := 0;
+	fE		   			: LREAL := 0;
+	fY		  			: LREAL := 0;
+	nCtrlCycleTicks	   	: UDINT := 0;
+	nActCtrlCycleTicks 	: UDINT := 0;
+	eMode_old	   		: E_CTRL_MODE := E_CTRL_MODE.eCTRL_MODE_IDLE;
+	fIn_moj: LREAL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[//Prvo projvjera inicijaliziacije stParams
+IF bFirstInit = TRUE THEN
+	M_init();
+END_IF
+
+//potrebno stalno provjeravati jesu li stParams dobri
+//
+M_Error();
+
+IF NOT bError THEN
+	;//
+END_IF
+
+//ukoliko se stInternalParams promine, promine se i fD0, fTaskC....
+//uvik su stInternalParams isti stParams..iako ih se promine u prog, opet se sami vracaju na stParams
+
+
+
+//eState prati eMode (ne uzrokuje zasad nista ako ga prominimo
+//rState se ne vreca automatski ako ga prominimo rucno
+
+(*fIn := fIn_moj, eMode := eMode_moj,*)
+
+(*
+IF stParams.tTaskCycleTime <= T#0MS THEN
+	bError := TRUE;
+	eState := E_CTRL_STATE.eCTRL_STATE_ERROR;
+	eErrorId := E_CTRL_ERRORCODES.eCTRL_ERROR_INVALIDTASKCYCLETIME;	
+END_IF
+IF stParams.tCtrlCycleTime <= T#0MS THEN
+	bError := TRUE;
+	eState := E_CTRL_STATE.eCTRL_STATE_ERROR;
+	eErrorId := E_CTRL_ERRORCODES.eCTRL_ERROR_INVALIDCTRLCYCLETIME;	
+END_IF
+*)
+
+
+]]></ST>
+    </Implementation>
+    <Method Name="M_Active" Id="{6d34b098-eaf6-4a6b-8f26-81930b36717c}">
+      <Declaration><![CDATA[METHOD M_Active]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_Error" Id="{8ec4e25e-6b6b-4d56-8857-b3a0fbf25bd2}">
+      <Declaration><![CDATA[METHOD M_Error]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT (stInternalParams.tTaskCycleTime > T#0MS) THEN
+	bError := TRUE;
+	eState := E_CTRL_STATE.eCTRL_STATE_ERROR;
+	eErrorId := E_CTRL_ERRORCODES.eCTRL_ERROR_INVALIDTASKCYCLETIME;
+
+ELSIF NOT (stParams.tCtrlCycleTime > T#0MS AND stParams.tCtrlCycleTime >= stParams.tTaskCycleTime)THEN
+	bError := TRUE;
+	eState := E_CTRL_STATE.eCTRL_STATE_ERROR;
+	eErrorId := E_CTRL_ERRORCODES.eCTRL_ERROR_INVALIDCTRLCYCLETIME;
+
+ELSE
+	stInternalParams.fKp := stParams.fKp;
+	stInternalParams.tCtrlCycleTime := stParams.tCtrlCycleTime;
+	stInternalParams.tTaskCycleTime := stParams.tTaskCycleTime;
+END_IF
+
+IF NOT (eMode = E_CTRL_MODE.eCTRL_MODE_IDLE 	OR eMode = E_CTRL_MODE.eCTRL_MODE_ACTIVE OR 
+		eMode = E_CTRL_MODE.eCTRL_MODE_PASSIVE 	OR eMode = E_CTRL_MODE.eCTRL_MODE_RESET) THEN
+	bError := TRUE;
+	eState := E_CTRL_STATE.eCTRL_STATE_ERROR;
+	eErrorId := E_CTRL_ERRORCODES.eCTRL_ERROR_MODE_NOT_SUPPORTED;
+END_IF
+
+
+IF eErrorId = E_CTRL_ERRORCODES.eCTRL_ERROR_NOERROR THEN
+	bError := FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_Init" Id="{99e91e73-41c0-41fd-8723-267fe9b06ec3}">
+      <Declaration><![CDATA[METHOD M_Init]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+IF NOT (stParams.tTaskCycleTime > T#0MS) THEN
+	bError := TRUE;
+	eState := E_CTRL_STATE.eCTRL_STATE_ERROR;
+	eErrorId := E_CTRL_ERRORCODES.eCTRL_ERROR_INVALIDTASKCYCLETIME;
+	bFirstInit := TRUE;
+
+ELSIF NOT (stParams.tCtrlCycleTime > T#0MS AND stParams.tCtrlCycleTime >= stParams.tTaskCycleTime)THEN
+	bError := TRUE;
+	eState := E_CTRL_STATE.eCTRL_STATE_ERROR;
+	eErrorId := E_CTRL_ERRORCODES.eCTRL_ERROR_INVALIDCTRLCYCLETIME;
+	bFirstInit := TRUE;
+
+ELSE
+	bFirstInit := FALSE;
+	
+	stInternalParams.fKp := stParams.fKp;
+	stInternalParams.tCtrlCycleTime := stParams.tCtrlCycleTime;
+	stInternalParams.tTaskCycleTime := stParams.tTaskCycleTime;
+	
+	fD0 := stInternalParams.fKp;
+	fTaskCycleTime := TIME_TO_LREAL(stInternalParams.tCtrlCycleTime)/1000; //potrebno 'ms' pretvoriti u 's'
+	fCtrlCycleTime := TIME_TO_LREAL(stInternalParams.tTaskCycleTime)/1000; //zato se dili sa 1000
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="M_Passive" Id="{cf4aec3c-72bd-480f-903f-e9ac66c335bd}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="M_Reset" Id="{f5472c1e-5b53-4976-b0d8-8d06ae4d19a7}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="M_StateChange" Id="{f1222631-c19c-42a9-8797-8fd2f1782340}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="FB_CTRL_P">
+      <LineId Id="101" Count="0" />
+      <LineId Id="103" Count="2" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="106" Count="0" />
+      <LineId Id="116" Count="0" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="121" Count="1" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="113" Count="1" />
+      <LineId Id="109" Count="1" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="117" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="56" Count="1" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="65" Count="3" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="52" Count="1" />
+      <LineId Id="50" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_CTRL_P.M_Active">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_CTRL_P.M_Error">
+      <LineId Id="6" Count="3" />
+      <LineId Id="11" Count="4" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="21" Count="2" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="37" Count="1" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="40" Count="3" />
+      <LineId Id="39" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_CTRL_P.M_Init">
+      <LineId Id="6" Count="14" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="21" Count="2" />
+      <LineId Id="25" Count="3" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="32" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_CTRL_P.M_Passive">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_CTRL_P.M_Reset">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_CTRL_P.M_StateChange">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
